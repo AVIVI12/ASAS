@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Royale v11</title>
+<title>Gemini Royale v12</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&display=swap" rel="stylesheet">
 
 <style>
-body { font-family: 'Assistant', sans-serif; background:#0d1117; color:#e6edf3; }
+body { font-family:'Assistant',sans-serif; background:#0d1117; color:#e6edf3; }
 .bubble { max-width:85%; padding:12px 16px; border-radius:16px; }
 .user { background:#1f6feb; border-bottom-right-radius:4px; }
 .ai { background:#21262d; border:1px solid #30363d; border-bottom-left-radius:4px; }
@@ -22,28 +22,43 @@ pre { background:#000; padding:1rem; border-radius:8px; overflow-x:auto; directi
 <body class="h-screen flex flex-col">
 
 <header class="p-3 bg-[#161b22] border-b border-[#30363d] flex gap-2 items-center">
+
 <input type="password" id="apiKey" placeholder="API Key"
- class="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs w-40">
+ class="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs w-48">
 
 <select id="model"
  class="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs">
-<option value="gemini-3-flash-preview" selected>Gemini 3 Flash (Preview)</option>
-<option value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</option>
-<option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-<option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-<option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+
+<option value="gemini-2.5-flash" selected>
+Gemini 2.5 Flash (Text)
+</option>
+
+<option value="gemini-2.5-pro">
+Gemini 2.5 Pro (Reasoning)
+</option>
+
+<option value="gemini-2.5-flash-lite">
+Gemini 2.5 Flash Lite
+</option>
+
+<option value="gemini-2.5-flash-image">
+Gemini 2.5 Flash Image (Generate Images)
+</option>
+
 </select>
 
 <button id="newChat"
  class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-sm">
 שיחה חדשה
 </button>
+
 </header>
 
 <main id="chat"
  class="flex-1 overflow-y-auto p-6 flex flex-col gap-4"></main>
 
 <footer class="p-4 bg-[#161b22] border-t border-[#30363d] flex gap-3">
+
 <textarea id="input"
  rows="1"
  placeholder="כתוב הודעה..."
@@ -53,13 +68,14 @@ pre { background:#000; padding:1rem; border-radius:8px; overflow-x:auto; directi
  class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl">
 שלח
 </button>
+
 </footer>
 
 <script>
 (() => {
 
-const STORAGE = "gemini_royale_v11";
-const KEY_STORAGE = "gemini_key_v11";
+const STORAGE = "gemini_royale_v12";
+const KEY_STORAGE = "gemini_key_v12";
 
 let state = {
     chats: JSON.parse(localStorage.getItem(STORAGE) || "{}"),
@@ -89,20 +105,24 @@ function createChat() {
 
 function render() {
     chatEl.innerHTML = "";
+
     if (!state.current) return;
 
     const messages = state.chats[state.current].messages;
 
     messages.forEach(m => {
+
         const wrapper = document.createElement("div");
-        wrapper.className = "flex " + (m.role === "user" ? "justify-start" : "justify-end");
+        wrapper.className = "flex " +
+            (m.role === "user" ? "justify-start" : "justify-end");
 
         const bubble = document.createElement("div");
         bubble.className = "bubble " +
             (m.role === "user" ? "user" :
-            m.error ? "error" : "ai");
+             m.error ? "error" : "ai");
 
         m.parts.forEach(p => {
+
             if (p.text) {
                 const div = document.createElement("div");
                 div.innerHTML = m.role === "user"
@@ -110,10 +130,21 @@ function render() {
                     : marked.parse(sanitize(p.text));
                 bubble.appendChild(div);
             }
+
+            if (p.inline_data) {
+                const img = document.createElement("img");
+                img.src =
+                    `data:${p.inline_data.mime_type};base64,${p.inline_data.data}`;
+                img.className =
+                    "max-w-xs rounded-xl mt-3 border border-gray-700";
+                bubble.appendChild(img);
+            }
+
         });
 
         wrapper.appendChild(bubble);
         chatEl.appendChild(wrapper);
+
     });
 
     chatEl.scrollTop = chatEl.scrollHeight;
@@ -173,18 +204,36 @@ async function sendMessage() {
 
         const data = await response.json();
 
-        const reply =
-            data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const candidate =
+            data.candidates?.[0]?.content?.parts?.[0];
 
-        if (!reply)
+        if (!candidate)
             throw new Error("תגובה לא תקינה");
 
         chat.messages = chat.messages.filter(m => !m.loading);
 
-        chat.messages.push({
-            role: "model",
-            parts: [{ text: reply }]
-        });
+        if (candidate.text) {
+            chat.messages.push({
+                role: "model",
+                parts: [{ text: candidate.text }]
+            });
+        }
+
+        else if (candidate.inline_data) {
+            chat.messages.push({
+                role: "model",
+                parts: [{
+                    inline_data: {
+                        mime_type: candidate.inline_data.mime_type,
+                        data: candidate.inline_data.data
+                    }
+                }]
+            });
+        }
+
+        else {
+            throw new Error("פורמט תגובה לא נתמך");
+        }
 
     } catch (err) {
 
@@ -212,7 +261,9 @@ el("input").addEventListener("keydown", e => {
     }
 });
 
-el("apiKey").value = localStorage.getItem(KEY_STORAGE) || "";
+el("apiKey").value =
+    localStorage.getItem(KEY_STORAGE) || "";
+
 el("apiKey").oninput = e =>
     localStorage.setItem(KEY_STORAGE, e.target.value);
 
