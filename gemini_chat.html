@@ -17,31 +17,27 @@
 <header class="p-4 border-b border-gray-800 flex flex-col gap-2 bg-[#111]">
 <h1 class="font-bold text-lg">Gemini Chat Pro ✨</h1>
 
-<div class="flex gap-2 items-center">
+<!-- שורה קומפקטית: API + Proxy + Model + New Chat -->
+<div class="flex gap-2 items-center flex-wrap">
 <input id="apiKey" type="password"
 placeholder="API Key"
-class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs w-52">
+class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs w-40">
+
+<input id="proxyServer" type="text"
+placeholder="Proxy (אופציונלי)"
+class="bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs w-36">
 
 <select id="model"
-class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs">
-
+class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs w-44">
 <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-
 </select>
 
 <button id="newChat"
 class="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 transition">
 שיחה חדשה
 </button>
-</div>
-
-<!-- שדה Proxy -->
-<div class="flex gap-2 items-center mt-2">
-<input id="proxyServer" type="text"
-placeholder="Proxy server (אופציונלי, כולל http/https)"
-class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs">
 </div>
 
 <!-- רשימת היסטוריית שיחות -->
@@ -187,10 +183,13 @@ async function sendMessage() {
   }
 }
 
-// --- היסטוריית שיחות ---
+// --- היסטוריית שיחות עם כפתור מחיקה ---
 function renderChatHistory() {
   historyEl.innerHTML = "";
   Object.keys(state.chats).sort((a,b) => b-a).forEach(chatId => {
+    const container = document.createElement("div");
+    container.className = "flex items-center gap-1";
+
     const chatBtn = document.createElement("button");
     chatBtn.className = "bg-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-600";
     const firstMsg = state.chats[chatId][0]?.content || "שיחה חדשה";
@@ -199,7 +198,26 @@ function renderChatHistory() {
       state.currentChatId = chatId;
       renderChat();
     };
-    historyEl.appendChild(chatBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "text-red-500 text-xs hover:text-red-400";
+    delBtn.textContent = "✖";
+    delBtn.onclick = () => {
+      if (confirm("למחוק שיחה זו?")) {
+        delete state.chats[chatId];
+        if (state.currentChatId === chatId) {
+          const remaining = Object.keys(state.chats);
+          state.currentChatId = remaining.length ? remaining[remaining.length-1] : createNewChat();
+        }
+        saveState();
+        renderChatHistory();
+        renderChat();
+      }
+    };
+
+    container.appendChild(chatBtn);
+    container.appendChild(delBtn);
+    historyEl.appendChild(container);
   });
 }
 
