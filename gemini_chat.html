@@ -3,144 +3,171 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Royale ✨</title>
+<title>Gemini Chat Pro</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+::-webkit-scrollbar { width:6px }
+::-webkit-scrollbar-thumb { background:#444; border-radius:10px }
+</style>
 </head>
 
-<body class="bg-black text-white min-h-screen flex flex-col">
+<body class="bg-[#0f0f0f] text-white h-screen flex flex-col">
 
-<header class="p-4 border-b border-gray-800 flex justify-between items-center">
-    <h1 class="text-lg font-bold">Gemini Royale ✨</h1>
+<header class="p-4 border-b border-gray-800 flex justify-between items-center bg-[#111]">
+<h1 class="font-bold text-lg">Gemini Chat Pro ✨</h1>
 
-    <div class="flex gap-2 items-center">
-        <input id="apiKey" type="password"
-            placeholder="הכנס API Key"
-            class="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs w-48">
+<div class="flex gap-2 items-center">
+<input id="apiKey" type="password"
+placeholder="API Key"
+class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs w-52">
 
-        <select id="model"
-            class="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs">
+<select id="model"
+class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs">
 
-            <option value="gemini-2.5-flash" selected>
-                Gemini 2.5 Flash (Text)
-            </option>
+<option value="gemini-2.5-flash" selected>
+Gemini 2.5 Flash
+</option>
 
-            <option value="gemini-2.5-pro">
-                Gemini 2.5 Pro
-            </option>
+<option value="gemini-2.5-pro">
+Gemini 2.5 Pro
+</option>
 
-            <option value="gemini-2.5-flash-lite">
-                Gemini 2.5 Flash Lite
-            </option>
+<option value="gemini-2.5-flash-lite">
+Gemini 2.5 Flash Lite
+</option>
 
-            <option value="gemini-2.5-flash-image">
-                Gemini 2.5 Flash Image (Images)
-            </option>
-
-        </select>
-    </div>
+</select>
+</div>
 </header>
 
-<main id="chat" class="flex-1 overflow-y-auto p-4 space-y-4"></main>
+<main id="chat"
+class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
+</main>
 
-<footer class="p-4 border-t border-gray-800 flex gap-2">
-    <input id="input" type="text"
-        placeholder="כתוב הודעה..."
-        class="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm">
+<footer class="p-4 border-t border-gray-800 flex gap-2 bg-[#111]">
+<input id="input" type="text"
+placeholder="כתוב הודעה..."
+class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none">
 
-    <button onclick="sendMessage()"
-        class="bg-white text-black px-4 py-2 rounded font-semibold">
-        שלח
-    </button>
+<button onclick="sendMessage()"
+class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition">
+שלח
+</button>
 </footer>
 
 <script>
+const chatEl = document.getElementById("chat");
+const inputEl = document.getElementById("input");
+
+inputEl.addEventListener("keydown", e => {
+if (e.key === "Enter") sendMessage();
+});
+
+function addMessage(role, content) {
+
+const wrapper = document.createElement("div");
+wrapper.className = role === "user"
+? "flex justify-end"
+: "flex justify-start";
+
+const bubble = document.createElement("div");
+bubble.className =
+role === "user"
+? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[70%] text-right"
+: "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[70%] text-left";
+
+renderContent(bubble, content);
+
+wrapper.appendChild(bubble);
+chatEl.appendChild(wrapper);
+chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function renderContent(container, text) {
+
+if (text.includes("```")) {
+const parts = text.split("```");
+
+parts.forEach((part, i) => {
+
+if (i % 2 === 0) {
+if (part.trim()) {
+const p = document.createElement("div");
+p.innerText = part;
+container.appendChild(p);
+}
+}
+else {
+const codeBlock = document.createElement("div");
+codeBlock.className =
+"relative bg-black border border-gray-700 rounded-xl mt-3";
+
+const pre = document.createElement("pre");
+pre.className = "p-4 overflow-x-auto text-sm";
+pre.innerText = part.trim();
+
+const copyBtn = document.createElement("button");
+copyBtn.innerText = "העתק";
+copyBtn.className =
+"absolute top-2 left-2 text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600";
+
+copyBtn.onclick = () => {
+navigator.clipboard.writeText(part.trim());
+copyBtn.innerText = "הועתק ✔";
+setTimeout(() => copyBtn.innerText = "העתק", 2000);
+};
+
+codeBlock.appendChild(copyBtn);
+codeBlock.appendChild(pre);
+container.appendChild(codeBlock);
+}
+});
+}
+else {
+container.innerText = text;
+}
+}
+
 async function sendMessage() {
 
-    const key = document.getElementById("apiKey").value.trim();
-    const model = document.getElementById("model").value;
-    const inputEl = document.getElementById("input");
-    const text = inputEl.value.trim();
-    const chat = document.getElementById("chat");
+const key = document.getElementById("apiKey").value.trim();
+const model = document.getElementById("model").value;
+const text = inputEl.value.trim();
 
-    if (!key) {
-        alert("הכנס API Key");
-        return;
-    }
+if (!key) return alert("הכנס API Key");
+if (!text) return;
 
-    if (!text) return;
+addMessage("user", text);
+inputEl.value = "";
 
-    addMessage("user", text);
-    inputEl.value = "";
+try {
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text }]
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error("HTTP " + response.status);
-        }
-
-        const data = await response.json();
-
-        const part = data.candidates?.[0]?.content?.parts?.[0];
-        if (!part) throw new Error("תגובה לא תקינה");
-
-        if (part.text) {
-            addMessage("model", part.text);
-        }
-
-        else if (part.inline_data) {
-            addImage(part.inline_data.mime_type, part.inline_data.data);
-        }
-
-        else {
-            addMessage("model", "פורמט תגובה לא נתמך");
-        }
-
-    } catch (err) {
-        addMessage("model", "שגיאה: " + err.message);
-    }
+const response = await fetch(
+`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
+{
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+contents: [{
+parts: [{ text }]
+}]
+})
 }
+);
 
-function addMessage(role, text) {
+if (!response.ok) throw new Error("HTTP " + response.status);
 
-    const chat = document.getElementById("chat");
+const data = await response.json();
+const reply =
+data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    const bubble = document.createElement("div");
-    bubble.className =
-        role === "user"
-        ? "bg-white text-black p-3 rounded-xl max-w-md self-end ml-auto"
-        : "bg-gray-900 border border-gray-700 p-3 rounded-xl max-w-md";
+if (!reply) throw new Error("תגובה לא תקינה");
 
-    bubble.textContent = text;
-    chat.appendChild(bubble);
-    chat.scrollTop = chat.scrollHeight;
+addMessage("model", reply);
+
+} catch (err) {
+addMessage("model", "שגיאה: " + err.message);
 }
-
-function addImage(mime, base64) {
-
-    const chat = document.getElementById("chat");
-
-    const wrapper = document.createElement("div");
-    wrapper.className =
-        "bg-gray-900 border border-gray-700 p-3 rounded-xl max-w-md";
-
-    const img = document.createElement("img");
-    img.src = `data:${mime};base64,${base64}`;
-    img.className = "rounded-xl max-w-full";
-
-    wrapper.appendChild(img);
-    chat.appendChild(wrapper);
-    chat.scrollTop = chat.scrollHeight;
 }
 </script>
 
