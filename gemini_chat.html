@@ -20,7 +20,7 @@
     border-radius: 0.5rem;
     margin: 1rem 0;
     overflow: hidden;
-    direction: ltr; /* קוד תמיד משמאל לימין */
+    direction: ltr;
     text-align: left;
 }
 .code-header {
@@ -55,7 +55,7 @@ class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
 
 <input id="proxyServer" type="text"
 placeholder="Proxy (אופציונלי)"
-class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-36">
+class="bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs w-36">
 
 <select id="model"
 class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-44">
@@ -90,9 +90,8 @@ class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 t
 </footer>
 
 <script>
-// פונקציית העתקה גלובלית
-function copyToClipboard(btn, text) {
-  const code = decodeURIComponent(text);
+function copyToClipboard(btn, encodedText) {
+  const code = decodeURIComponent(encodedText);
   navigator.clipboard.writeText(code).then(() => {
     const originalText = btn.innerHTML;
     btn.innerHTML = "✅ הועתק";
@@ -100,20 +99,27 @@ function copyToClipboard(btn, text) {
   });
 }
 
-// הגדרת Renderer מותאם ל-Marked עבור קוד
 const renderer = new marked.Renderer();
-renderer.code = (code, language) => {
-  const encodedCode = encodeURIComponent(code);
+// תיקון ה-Renderer לגרסאות החדשות של Marked
+renderer.code = function(token, language) {
+  // בגרסאות חדשות token הוא אובייקט, בישנות הוא מחרוזת
+  const codeText = (typeof token === 'object') ? token.text : token;
+  const lang = (typeof token === 'object') ? token.lang : language;
+  
+  // הגנה על גרשיים בתוך הפונקציה של הכפתור
+  const encodedCode = encodeURIComponent(codeText).replace(/'/g, "%27");
+  
   return `
     <div class="code-container">
       <div class="code-header">
-        <span>${language || 'code'}</span>
+        <span>${lang || 'code'}</span>
         <button class="copy-btn" onclick="copyToClipboard(this, '${encodedCode}')">📋 העתק קוד</button>
       </div>
-      <pre class="p-4 overflow-x-auto font-mono text-sm uppercase-none"><code>${code}</code></pre>
+      <pre class="p-4 overflow-x-auto font-mono text-sm"><code>${codeText}</code></pre>
     </div>
   `;
 };
+
 marked.setOptions({ renderer: renderer });
 
 const chatEl = document.getElementById("chat");
@@ -255,7 +261,7 @@ function renderChatHistory() {
 
     const chatBtn = document.createElement("button");
     chatBtn.className = "bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700 truncate max-w-[120px] transition";
-    const firstMsg = state.chats[chatId][0]?.content || "שיחה חדשה";
+    const firstMsg = (state.chats[chatId][0]?.content || "שיחה חדשה").substring(0, 20);
     chatBtn.textContent = firstMsg;
     chatBtn.onclick = () => {
       state.currentChatId = chatId;
@@ -298,3 +304,4 @@ loadState();
 
 </body>
 </html>
+```_
