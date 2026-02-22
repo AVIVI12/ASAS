@@ -13,7 +13,6 @@
 .bubble p:last-child { margin-bottom: 0; }
 .bubble { white-space: pre-wrap; }
 
-/* עיצוב למסגרת הקוד */
 .code-container {
     background-color: #000;
     border: 1px solid #374151;
@@ -55,7 +54,7 @@ class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
 
 <input id="proxyServer" type="text"
 placeholder="Proxy (אופציונלי)"
-class="bg-gray-900 border border-gray-700 rounded px-2 py-2 text-xs w-36">
+class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-36">
 
 <select id="model"
 class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-44">
@@ -99,15 +98,25 @@ function copyToClipboard(btn, encodedText) {
   });
 }
 
+// פונקציה למניעת הרצה של HTML בתוך תיבת הקוד
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 const renderer = new marked.Renderer();
-// תיקון ה-Renderer לגרסאות החדשות של Marked
+
 renderer.code = function(token, language) {
-  // בגרסאות חדשות token הוא אובייקט, בישנות הוא מחרוזת
   const codeText = (typeof token === 'object') ? token.text : token;
   const lang = (typeof token === 'object') ? token.lang : language;
   
-  // הגנה על גרשיים בתוך הפונקציה של הכפתור
   const encodedCode = encodeURIComponent(codeText).replace(/'/g, "%27");
+  // המרה של הקוד לטקסט בטוח להצגה
+  const safeCode = escapeHtml(codeText);
   
   return `
     <div class="code-container">
@@ -115,7 +124,7 @@ renderer.code = function(token, language) {
         <span>${lang || 'code'}</span>
         <button class="copy-btn" onclick="copyToClipboard(this, '${encodedCode}')">📋 העתק קוד</button>
       </div>
-      <pre class="p-4 overflow-x-auto font-mono text-sm"><code>${codeText}</code></pre>
+      <pre class="p-4 overflow-x-auto font-mono text-sm"><code>${safeCode}</code></pre>
     </div>
   `;
 };
@@ -304,4 +313,3 @@ loadState();
 
 </body>
 </html>
-```_
