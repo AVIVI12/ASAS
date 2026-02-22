@@ -9,6 +9,10 @@
 <style>
 ::-webkit-scrollbar { width:6px }
 ::-webkit-scrollbar-thumb { background:#444; border-radius:10px }
+/* שיפור תצוגת ירידת שורה בבועות */
+.bubble p { margin-bottom: 0.5rem; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble { white-space: pre-wrap; }
 </style>
 </head>
 
@@ -17,7 +21,6 @@
 <header class="p-4 border-b border-gray-800 flex flex-col gap-2 bg-[#111]">
 <h1 class="font-bold text-lg">Gemini Chat Pro ✨</h1>
 
-<!-- שורה קומפקטית: API + Proxy + Model + New Chat -->
 <div class="flex gap-2 items-center flex-wrap">
 <input id="apiKey" type="password"
 placeholder="API Key"
@@ -29,9 +32,9 @@ class="bg-gray-800 border border-gray-700 rounded px-2 py-2 text-xs w-36">
 
 <select id="model"
 class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs w-44">
-<option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
-<option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-<option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+<option value="gemini-2.0-flash" selected>Gemini 2.0 Flash</option>
+<option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro</option>
+<option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
 </select>
 
 <button id="newChat"
@@ -40,7 +43,6 @@ class="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 tran
 </button>
 </div>
 
-<!-- רשימת היסטוריית שיחות -->
 <div id="chatHistory" class="flex gap-2 overflow-x-auto mt-2"></div>
 
 </header>
@@ -50,12 +52,13 @@ class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
 </main>
 
 <footer class="p-4 border-t border-gray-800 flex gap-2 bg-[#111]">
-<input id="input" type="text"
-placeholder="כתוב הודעה..."
-class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none">
+<!-- שינוי ל-textarea כדי לאפשר ירידת שורה בכתיבה -->
+<textarea id="input" rows="1"
+placeholder="כתוב הודעה... (Shift+Enter לירידת שורה)"
+class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none resize-none overflow-y-auto max-h-32"></textarea>
 
 <button onclick="sendMessage()"
-class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition">
+class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition self-end">
 שלח
 </button>
 </footer>
@@ -105,9 +108,19 @@ function createNewChat() {
 
 newChatBtn.onclick = () => createNewChat();
 
+// עדכון המאזין למקלדת: Enter שולח, Shift+Enter יורד שורה
 inputEl.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) sendMessage();
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
 });
+
+// התאמת גובה אוטומטית לשדה הקלט
+inputEl.oninput = function() {
+  this.style.height = 'auto';
+  this.style.height = (this.scrollHeight) + 'px';
+};
 
 proxyInput.addEventListener("change", () => {
   state.proxy = proxyInput.value.trim();
@@ -120,8 +133,8 @@ function addMessage(role, content) {
 
   const bubble = document.createElement("div");
   bubble.className = role === "user"
-    ? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[70%] text-right break-words"
-    : "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[70%] text-right break-words";
+    ? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[70%] text-right break-words bubble"
+    : "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[70%] text-right break-words bubble";
 
   renderContent(bubble, content);
 
@@ -130,8 +143,9 @@ function addMessage(role, content) {
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
+// שימוש ב-marked.parse במקום parseInline לתמיכה בירידות שורה מלאות
 function renderContent(container, text) {
-  container.innerHTML = marked.parseInline(text);
+  container.innerHTML = marked.parse(text);
 }
 
 async function sendMessage() {
@@ -147,6 +161,7 @@ async function sendMessage() {
   state.chats[state.currentChatId].push({ role: "user", content: text });
   addMessage("user", text);
   inputEl.value = "";
+  inputEl.style.height = 'auto'; // איפוס גובה
   saveState();
 
   try {
@@ -183,24 +198,26 @@ async function sendMessage() {
   }
 }
 
-// --- היסטוריית שיחות עם כפתור מחיקה ---
 function renderChatHistory() {
   historyEl.innerHTML = "";
   Object.keys(state.chats).sort((a,b) => b-a).forEach(chatId => {
     const container = document.createElement("div");
-    container.className = "flex items-center gap-1";
+    container.className = "flex items-center gap-1 flex-shrink-0";
 
     const chatBtn = document.createElement("button");
-    chatBtn.className = "bg-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-600";
+    chatBtn.className = "bg-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-600 truncate max-w-[120px]";
     const firstMsg = state.chats[chatId][0]?.content || "שיחה חדשה";
-    chatBtn.textContent = firstMsg.length > 20 ? firstMsg.slice(0,20)+"..." : firstMsg;
+    chatBtn.textContent = firstMsg;
     chatBtn.onclick = () => {
       state.currentChatId = chatId;
       renderChat();
+      renderChatHistory();
     };
 
+    if (state.currentChatId === chatId) chatBtn.classList.add("ring-1", "ring-blue-400");
+
     const delBtn = document.createElement("button");
-    delBtn.className = "text-red-500 text-xs hover:text-red-400";
+    delBtn.className = "text-red-500 text-xs hover:text-red-400 px-1";
     delBtn.textContent = "✖";
     delBtn.onclick = () => {
       if (confirm("למחוק שיחה זו?")) {
@@ -227,7 +244,6 @@ function renderChat() {
   chat.forEach(msg => addMessage(msg.role, msg.content));
 }
 
-// אתחול
 loadState();
 </script>
 
