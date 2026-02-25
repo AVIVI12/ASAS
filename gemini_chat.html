@@ -26,13 +26,9 @@
 
 <div class="flex gap-2 items-center flex-wrap">
 
-<input id="apiKey" type="password"
-placeholder="API Key"
-class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
-
 <input id="proxyServer" type="text"
-placeholder="Proxy URL (אופציונלי)"
-class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-64">
+placeholder="Proxy URL (חובה לשים את ה-Apps Script)"
+class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-72">
 
 <select id="model"
 class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-56">
@@ -80,22 +76,10 @@ class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 t
 </footer>
 
 <script>
-/* ========= CONFIG ========= */
-
-const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const FALLBACK_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-flash"
-];
-
 /* ========= STATE ========= */
-
 let state = {
   chats: JSON.parse(localStorage.getItem("gemini_chats") || "{}"),
   currentChatId: null,
-  apiKey: localStorage.getItem("gemini_api_key") || "",
   proxy: localStorage.getItem("gemini_proxy") || ""
 };
 
@@ -103,16 +87,10 @@ const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("input");
 const historyEl = document.getElementById("chatHistory");
 const proxyInput = document.getElementById("proxyServer");
-const apiInput = document.getElementById("apiKey");
 
-apiInput.value = state.apiKey;
-proxyInput.value = state.proxy;
-
-/* ========= STATE MANAGEMENT ========= */
-
+/* ========= UTILS ========= */
 function saveState() {
   localStorage.setItem("gemini_chats", JSON.stringify(state.chats));
-  localStorage.setItem("gemini_api_key", state.apiKey);
   localStorage.setItem("gemini_proxy", state.proxy);
 }
 
@@ -125,119 +103,87 @@ function createNewChat() {
   renderHistory();
 }
 
-function loadState() {
-  const ids = Object.keys(state.chats);
-  state.currentChatId = ids.length ? ids[ids.length - 1] : null;
-  if (!state.currentChatId) createNewChat();
-  renderChat();
-  renderHistory();
-}
-
-/* ========= UI ========= */
-
-function renderMarkdown(el, text) {
+function renderMarkdown(el,text){
   el.innerHTML = DOMPurify.sanitize(marked.parse(text));
 }
 
-function addMessage(role, text) {
+function addMessage(role,text){
   const wrapper = document.createElement("div");
-  wrapper.className = role === "user" ? "flex justify-end" : "flex justify-start";
-
+  wrapper.className = role==="user"?"flex justify-end":"flex justify-start";
   const bubble = document.createElement("div");
-  bubble.className =
-    role === "user"
-      ? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble"
-      : "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble";
-
-  renderMarkdown(bubble, text);
+  bubble.className = role==="user"
+    ?"bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble"
+    :"bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble";
+  renderMarkdown(bubble,text);
   wrapper.appendChild(bubble);
   chatEl.appendChild(wrapper);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
-function renderChat() {
-  chatEl.innerHTML = "";
-  (state.chats[state.currentChatId] || []).forEach(m =>
-    addMessage(m.role, m.content)
-  );
+function renderChat(){
+  chatEl.innerHTML="";
+  (state.chats[state.currentChatId]||[]).forEach(m=>addMessage(m.role,m.content));
 }
 
-function renderHistory() {
-  historyEl.innerHTML = "";
+function renderHistory(){
+  historyEl.innerHTML="";
   Object.keys(state.chats).sort((a,b)=>b-a).forEach(id=>{
     const btn = document.createElement("button");
-    btn.className = "bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700";
-    btn.textContent = (state.chats[id][0]?.content || "שיחה חדשה").substring(0,20);
-    btn.onclick = ()=>{
-      state.currentChatId = id;
+    btn.className="bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700";
+    btn.textContent=(state.chats[id][0]?.content||"שיחה חדשה").substring(0,20);
+    btn.onclick=()=>{
+      state.currentChatId=id;
       renderChat();
       renderHistory();
     };
-    if(id===state.currentChatId)
-      btn.classList.add("ring-2","ring-blue-500");
+    if(id===state.currentChatId) btn.classList.add("ring-2","ring-blue-500");
     historyEl.appendChild(btn);
   });
 }
 
 /* ========= API ========= */
-
-function buildUrl(model, key) {
-  let url = `${API_BASE}/${model}:generateContent?key=${key}`;
-
-  if (!state.proxy) return url;
-
-  if (state.proxy.includes("{url}")) {
-    return state.proxy.replace("{url}", encodeURIComponent(url));
-  }
-
-  return state.proxy + encodeURIComponent(url);
+function buildPayload(){
+  return {payload:{
+    contents:(state.chats[state.currentChatId]||[]).map(m=>({
+      role:m.role==="user"?"user":"model",
+      parts:[{text:m.content}]
+    }))
+  }};
 }
 
-async function tryModel(model, key, payload) {
-  const url = buildUrl(model, key);
+async function sendMessage(){
+  const proxy = proxyInput.value.trim();
+  if(!proxy) return alert("שורת Proxy חובה");
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return res.json();
-}
-
-async function sendMessage() {
-  const key = apiInput.value.trim();
   const model = document.getElementById("model").value;
   const text = inputEl.value.trim();
-
-  if (!key) return alert("הכנס API Key");
-  if (!text) return;
-
-  state.apiKey = key;
-  saveState();
+  if(!text) return;
 
   state.chats[state.currentChatId].push({role:"user",content:text});
   renderChat();
   inputEl.value="";
   inputEl.style.height="auto";
-
   addMessage("model","⏳ חושב...");
 
-  const payload = {
-    contents: state.chats[state.currentChatId].map(m=>({
-      role: m.role==="user"?"user":"model",
-      parts:[{text:m.content}]
-    }))
-  };
+  const payload = buildPayload();
+  payload.model=model;
 
-  const modelsToTry = [model, ...FALLBACK_MODELS.filter(m=>m!==model)];
+  const FALLBACK_MODELS = ["gemini-2.0-flash","gemini-1.5-flash-latest","gemini-1.5-flash"];
 
-  for (let m of modelsToTry) {
-    try {
-      const data = await tryModel(m, key, payload);
+  const modelsToTry = [model,...FALLBACK_MODELS.filter(m=>m!==model)];
+
+  for(let m of modelsToTry){
+    try{
+      payload.model=m;
+      const res = await fetch(proxy,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const data = await res.json();
       const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!reply) throw new Error("תגובה ריקה");
+      if(!reply) throw new Error("תגובה ריקה");
 
       state.chats[state.currentChatId].pop();
       state.chats[state.currentChatId].push({role:"model",content:reply});
@@ -245,19 +191,16 @@ async function sendMessage() {
       saveState();
       renderHistory();
       return;
-
-    } catch (err) {
-      console.warn("Model failed:", m);
+    }catch(err){
+      console.warn("Model failed:",m,err);
     }
   }
-
   state.chats[state.currentChatId].pop();
   addMessage("model","❌ כל המודלים נכשלו.");
 }
 
 /* ========= EVENTS ========= */
-
-document.getElementById("newChat").onclick = createNewChat;
+document.getElementById("newChat").onclick=createNewChat;
 
 inputEl.addEventListener("keydown",e=>{
   if(e.key==="Enter" && !e.shiftKey){
@@ -277,6 +220,14 @@ proxyInput.onchange=()=>{
 };
 
 loadState();
+
+function loadState(){
+  const ids=Object.keys(state.chats);
+  state.currentChatId=ids.length?ids[ids.length-1]:null;
+  if(!state.currentChatId) createNewChat();
+  renderChat();
+  renderHistory();
+}
 </script>
 
 </body>
