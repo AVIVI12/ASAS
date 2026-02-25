@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Chat Pro – Dynamic Models</title>
+<title>Gemini Chat Pro – Fixed Models</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
@@ -22,11 +22,20 @@
 <div class="flex gap-2 items-center flex-wrap">
 
 <input id="apiKey" type="password" placeholder="הכנס API Key" class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
-<input id="proxyServer" type="text" placeholder="Proxy URL" class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-64">
+
+<input id="proxyServer" type="text" placeholder="Proxy URL (אופציונלי)" class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-64">
+
 <select id="model" class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-64">
-  <option>טוען מודלים...</option>
+  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+  <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+  <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash Latest</option>
+  <option value="gemini-1.5-flash-8b-latest">Gemini 1.5 Flash 8B Latest</option>
 </select>
+
 <button id="newChat" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 transition">שיחה חדשה</button>
+
 </div>
 <div id="chatHistory" class="flex gap-2 overflow-x-auto mt-2"></div>
 </header>
@@ -50,9 +59,7 @@ const apiInput=document.getElementById("apiKey");
 const modelSelect=document.getElementById("model");
 
 /* ========= HELPERS ========= */
-function saveState(){
-  localStorage.setItem("gemini_chats",JSON.stringify(state.chats));
-}
+function saveState(){ localStorage.setItem("gemini_chats",JSON.stringify(state.chats)); }
 function addMessage(role,text){
   const wrapper=document.createElement("div");
   wrapper.className=role==="user"?"flex justify-end":"flex justify-start";
@@ -63,10 +70,7 @@ function addMessage(role,text){
   chatEl.appendChild(wrapper);
   chatEl.scrollTop=chatEl.scrollHeight;
 }
-function renderChat(){
-  chatEl.innerHTML="";
-  (state.chats[state.currentChatId]||[]).forEach(m=>addMessage(m.role,m.content));
-}
+function renderChat(){ chatEl.innerHTML=""; (state.chats[state.currentChatId]||[]).forEach(m=>addMessage(m.role,m.content)); }
 function renderHistory(){
   historyEl.innerHTML="";
   Object.keys(state.chats).sort((a,b)=>b-a).forEach(id=>{
@@ -79,44 +83,23 @@ function renderHistory(){
   });
 }
 
-/* ========= LOAD MODELS DYNAMICALLY ========= */
-async function loadModels(){
-  const key=apiInput.value.trim();
-  const proxy=proxyInput.value.trim();
-  if(!key || !proxy) return;
-  try{
-    const url=`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
-    const res=await fetch(proxy,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url,payload:{}})});
-    const data=await res.json();
-    modelSelect.innerHTML="";
-    data.models?.forEach(m=>{
-      if(m.name.includes("flash")){ // רק מודלים חינמיים
-        const opt=document.createElement("option");
-        opt.value=m.name;
-        opt.textContent=m.name;
-        modelSelect.appendChild(opt);
-      }
-    });
-  }catch(err){
-    console.error("שגיאה בטעינת מודלים",err);
-    modelSelect.innerHTML='<option>לא ניתן לטעון מודלים</option>';
-  }
-}
-
 /* ========= SEND MESSAGE ========= */
 async function sendMessage(){
   const text=inputEl.value.trim();
   const key=apiInput.value.trim();
   const proxy=proxyInput.value.trim();
   const model=modelSelect.value;
-  if(!text||!key||!proxy||!model) return alert("יש למלא API Key, Proxy, טקסט ובחירת מודל");
+  if(!text||!key||!model) return alert("יש למלא API Key, טקסט ובחירת מודל");
   state.chats[state.currentChatId].push({role:"user",content:text});
   renderChat();
   inputEl.value=""; inputEl.style.height="auto";
   addMessage("model","⏳ חושב...");
+
   const payload={payload:{contents:state.chats[state.currentChatId].map(m=>({role:m.role==="user"?"user":"model",parts:[{text:m.content}]}))},model};
   try{
-    const res=await fetch(proxy,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,payload})});
+    let url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    if(proxy) url=proxy+encodeURIComponent(url); // אם יש proxy, נשתמש בו
+    const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const data=await res.json();
     const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||"❌ לא התקבלה תגובה";
@@ -128,7 +111,7 @@ async function sendMessage(){
   }catch(err){
     console.error(err);
     state.chats[state.currentChatId].pop();
-    addMessage("model","❌ כל המודלים נכשלו");
+    addMessage("model","❌ שליחת הבקשה נכשלה. ייתכן ש-CORS חסום אם אין Proxy.");
   }
 }
 
@@ -136,8 +119,6 @@ async function sendMessage(){
 document.getElementById("newChat").onclick=()=>{const id=Date.now().toString(); state.chats[id]=[]; state.currentChatId=id; saveState(); renderChat(); renderHistory();}
 inputEl.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); sendMessage();}});
 inputEl.oninput=function(){this.style.height="auto"; this.style.height=this.scrollHeight+"px";}
-proxyInput.onchange=loadModels;
-apiInput.onchange=loadModels;
 
 /* ========= INIT ========= */
 (function init(){
