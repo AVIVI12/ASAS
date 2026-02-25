@@ -1,151 +1,33 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Chat Pro</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<style>
-::-webkit-scrollbar { width:6px }
-::-webkit-scrollbar-thumb { background:#444; border-radius:10px }
-.bubble p { margin-bottom: 0.5rem; }
-.bubble p:last-child { margin-bottom: 0; }
-.bubble { white-space: pre-wrap; }
-
-.code-container {
-    background-color: #000;
-    border: 1px solid #374151;
-    border-radius: 0.5rem;
-    margin: 1rem 0;
-    overflow: hidden;
-    direction: ltr;
-    text-align: left;
-}
-.code-header {
-    background-color: #1f2937;
-    padding: 0.5rem 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-family: sans-serif;
-    font-size: 0.75rem;
-    color: #d1d5db;
-}
-.copy-btn {
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.copy-btn:hover {
-    color: #fff;
-}
-</style>
-</head>
-
-<body class="bg-[#0f0f0f] text-white h-screen flex flex-col">
-
-<header class="p-4 border-b border-gray-800 flex flex-col gap-2 bg-[#111]">
-<h1 class="font-bold text-lg">Gemini Chat Pro ✨</h1>
-
-<div class="flex gap-2 items-center flex-wrap">
-<input id="apiKey" type="password"
-placeholder="API Key"
-class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
-
-<input id="proxyServer" type="text"
-placeholder="Proxy (אופציונלי)"
-class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-36">
-
-<select id="model"
-class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-44">
-<option value="gemini-2.0-flash" selected>Gemini 2.0 Flash</option>
-<option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro</option>
-<option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-</select>
-
-<button id="newChat"
-class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 transition">
-שיחה חדשה
-</button>
-</div>
-
-<div id="chatHistory" class="flex gap-2 overflow-x-auto mt-2"></div>
-
-</header>
-
-<main id="chat"
-class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
-</main>
-
-<footer class="p-4 border-t border-gray-800 flex gap-2 bg-[#111]">
-<textarea id="input" rows="1"
-placeholder="כתוב הודעה... (Shift+Enter לירידת שורה)"
-class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none resize-none overflow-y-auto max-h-32"></textarea>
-
-<button onclick="sendMessage()"
-class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition self-end">
-שלח
-</button>
-</footer>
-
 <script>
-function copyToClipboard(btn, encodedText) {
-  const code = decodeURIComponent(encodedText);
-  navigator.clipboard.writeText(code).then(() => {
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "✅ הועתק";
-    setTimeout(() => { btn.innerHTML = originalText; }, 2000);
-  });
-}
+/* ========= CONFIG ========= */
 
-// פונקציה למניעת הרצה של HTML בתוך תיבת הקוד
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-const renderer = new marked.Renderer();
+const FALLBACK_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash"
+];
 
-renderer.code = function(token, language) {
-  const codeText = (typeof token === 'object') ? token.text : token;
-  const lang = (typeof token === 'object') ? token.lang : language;
-  
-  const encodedCode = encodeURIComponent(codeText).replace(/'/g, "%27");
-  // המרה של הקוד לטקסט בטוח להצגה
-  const safeCode = escapeHtml(codeText);
-  
-  return `
-    <div class="code-container">
-      <div class="code-header">
-        <span>${lang || 'code'}</span>
-        <button class="copy-btn" onclick="copyToClipboard(this, '${encodedCode}')">📋 העתק קוד</button>
-      </div>
-      <pre class="p-4 overflow-x-auto font-mono text-sm"><code>${safeCode}</code></pre>
-    </div>
-  `;
-};
-
-marked.setOptions({ renderer: renderer });
-
-const chatEl = document.getElementById("chat");
-const inputEl = document.getElementById("input");
-const newChatBtn = document.getElementById("newChat");
-const proxyInput = document.getElementById("proxyServer");
-const historyEl = document.getElementById("chatHistory");
+/* ========= STATE ========= */
 
 let state = {
-  chats: {},        
+  chats: JSON.parse(localStorage.getItem("gemini_chats") || "{}"),
   currentChatId: null,
   apiKey: localStorage.getItem("gemini_api_key") || "",
   proxy: localStorage.getItem("gemini_proxy") || ""
 };
 
-document.getElementById("apiKey").value = state.apiKey;
+const chatEl = document.getElementById("chat");
+const inputEl = document.getElementById("input");
+const historyEl = document.getElementById("chatHistory");
+const proxyInput = document.getElementById("proxyServer");
+const apiInput = document.getElementById("apiKey");
+
+apiInput.value = state.apiKey;
 proxyInput.value = state.proxy;
+
+/* ========= STATE ========= */
 
 function saveState() {
   localStorage.setItem("gemini_chats", JSON.stringify(state.chats));
@@ -153,164 +35,165 @@ function saveState() {
   localStorage.setItem("gemini_proxy", state.proxy);
 }
 
-function loadState() {
-  const saved = localStorage.getItem("gemini_chats");
-  if (saved) state.chats = JSON.parse(saved);
-  const chatIds = Object.keys(state.chats);
-  if (chatIds.length) state.currentChatId = chatIds[chatIds.length-1];
-  else createNewChat();
-  renderChatHistory();
-  renderChat();
-}
-
 function createNewChat() {
-  const chatId = Date.now().toString();
-  state.chats[chatId] = [];
-  state.currentChatId = chatId;
+  const id = Date.now().toString();
+  state.chats[id] = [];
+  state.currentChatId = id;
   saveState();
-  renderChatHistory();
   renderChat();
-  return chatId;
+  renderHistory();
 }
 
-newChatBtn.onclick = () => createNewChat();
+function loadState() {
+  const ids = Object.keys(state.chats);
+  state.currentChatId = ids.length ? ids[ids.length - 1] : null;
+  if (!state.currentChatId) createNewChat();
+  renderChat();
+  renderHistory();
+}
 
-inputEl.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
+/* ========= UI ========= */
 
-inputEl.oninput = function() {
-  this.style.height = 'auto';
-  this.style.height = (this.scrollHeight) + 'px';
-};
+function renderMarkdown(el, text) {
+  el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+}
 
-proxyInput.addEventListener("change", () => {
-  state.proxy = proxyInput.value.trim();
-  saveState();
-});
-
-function addMessage(role, content) {
+function addMessage(role, text) {
   const wrapper = document.createElement("div");
   wrapper.className = role === "user" ? "flex justify-end" : "flex justify-start";
 
   const bubble = document.createElement("div");
-  bubble.className = role === "user"
-    ? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] text-right break-words bubble shadow-lg"
-    : "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] text-right break-words bubble shadow-lg";
+  bubble.className =
+    role === "user"
+      ? "bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg"
+      : "bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg";
 
-  renderContent(bubble, content);
-
+  renderMarkdown(bubble, text);
   wrapper.appendChild(bubble);
   chatEl.appendChild(wrapper);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
-function renderContent(container, text) {
-  container.innerHTML = marked.parse(text);
+function renderChat() {
+  chatEl.innerHTML = "";
+  (state.chats[state.currentChatId] || []).forEach(m =>
+    addMessage(m.role, m.content)
+  );
+}
+
+function renderHistory() {
+  historyEl.innerHTML = "";
+  Object.keys(state.chats).sort((a,b)=>b-a).forEach(id=>{
+    const btn = document.createElement("button");
+    btn.className = "bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700";
+    btn.textContent = (state.chats[id][0]?.content || "שיחה חדשה").substring(0,20);
+    btn.onclick = ()=>{
+      state.currentChatId = id;
+      renderChat();
+      renderHistory();
+    };
+    if(id===state.currentChatId)
+      btn.classList.add("ring-2","ring-blue-500");
+    historyEl.appendChild(btn);
+  });
+}
+
+/* ========= API ========= */
+
+function buildUrl(model, key) {
+  let url = `${API_BASE}/${model}:generateContent?key=${key}`;
+
+  if (!state.proxy) return url;
+
+  if (state.proxy.includes("{url}")) {
+    return state.proxy.replace("{url}", encodeURIComponent(url));
+  }
+
+  return state.proxy + encodeURIComponent(url);
+}
+
+async function tryModel(model, key, payload) {
+  const url = buildUrl(model, key);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
 }
 
 async function sendMessage() {
-  const key = document.getElementById("apiKey").value.trim();
+  const key = apiInput.value.trim();
   const model = document.getElementById("model").value;
   const text = inputEl.value.trim();
+
   if (!key) return alert("הכנס API Key");
   if (!text) return;
 
   state.apiKey = key;
   saveState();
 
-  state.chats[state.currentChatId].push({ role: "user", content: text });
+  state.chats[state.currentChatId].push({role:"user",content:text});
   addMessage("user", text);
-  inputEl.value = "";
-  inputEl.style.height = 'auto';
-  saveState();
+  inputEl.value="";
+  inputEl.style.height="auto";
 
-  try {
-    const messagesForAPI = state.chats[state.currentChatId].map(m => ({
-      role: m.role === "user" ? "user" : "model",
-      parts: [{ text: m.content }]
-    }));
+  addMessage("model","⏳ חושב...");
 
-    let url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`;
-    if (state.proxy) url = state.proxy + encodeURIComponent(url);
+  const payload = {
+    contents: state.chats[state.currentChatId].map(m=>({
+      role: m.role==="user"?"user":"model",
+      parts:[{text:m.content}]
+    }))
+  };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: messagesForAPI })
-    });
+  const modelsToTry = [model, ...FALLBACK_MODELS.filter(m=>m!==model)];
 
-    if (!response.ok) throw new Error("HTTP " + response.status);
+  for (let m of modelsToTry) {
+    try {
+      const data = await tryModel(m, key, payload);
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!reply) throw new Error("תגובה ריקה");
 
-    const data = await response.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!reply) throw new Error("תגובה לא תקינה");
-
-    state.chats[state.currentChatId].push({ role: "model", content: reply });
-    addMessage("model", reply);
-    saveState();
-    renderChatHistory();
-
-  } catch (err) {
-    const errorText = "שגיאה: " + err.message;
-    state.chats[state.currentChatId].push({ role: "model", content: errorText });
-    addMessage("model", errorText);
-    saveState();
-  }
-}
-
-function renderChatHistory() {
-  historyEl.innerHTML = "";
-  Object.keys(state.chats).sort((a,b) => b-a).forEach(chatId => {
-    const container = document.createElement("div");
-    container.className = "flex items-center gap-1 flex-shrink-0";
-
-    const chatBtn = document.createElement("button");
-    chatBtn.className = "bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700 truncate max-w-[120px] transition";
-    const firstMsg = (state.chats[chatId][0]?.content || "שיחה חדשה").substring(0, 20);
-    chatBtn.textContent = firstMsg;
-    chatBtn.onclick = () => {
-      state.currentChatId = chatId;
+      state.chats[state.currentChatId].pop(); // remove "חושב..."
+      state.chats[state.currentChatId].push({role:"model",content:reply});
       renderChat();
-      renderChatHistory();
-    };
+      saveState();
+      renderHistory();
+      return;
 
-    if (state.currentChatId === chatId) chatBtn.classList.add("ring-2", "ring-blue-500", "bg-gray-700");
+    } catch (err) {
+      console.warn("Model failed:", m);
+    }
+  }
 
-    const delBtn = document.createElement("button");
-    delBtn.className = "text-red-500 text-xs hover:text-red-400 px-1 transition";
-    delBtn.textContent = "✖";
-    delBtn.onclick = () => {
-      if (confirm("למחוק שיחה זו?")) {
-        delete state.chats[chatId];
-        if (state.currentChatId === chatId) {
-          const remaining = Object.keys(state.chats);
-          state.currentChatId = remaining.length ? remaining[remaining.length-1] : createNewChat();
-        }
-        saveState();
-        renderChatHistory();
-        renderChat();
-      }
-    };
-
-    container.appendChild(chatBtn);
-    container.appendChild(delBtn);
-    historyEl.appendChild(container);
-  });
+  state.chats[state.currentChatId].pop();
+  addMessage("model","❌ כל המודלים נכשלו.");
 }
 
-function renderChat() {
-  chatEl.innerHTML = "";
-  const chat = state.chats[state.currentChatId] || [];
-  chat.forEach(msg => addMessage(msg.role, msg.content));
-}
+/* ========= EVENTS ========= */
+
+document.getElementById("newChat").onclick = createNewChat;
+
+inputEl.addEventListener("keydown",e=>{
+  if(e.key==="Enter" && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+inputEl.oninput=function(){
+  this.style.height="auto";
+  this.style.height=this.scrollHeight+"px";
+};
+
+proxyInput.onchange=()=>{
+  state.proxy=proxyInput.value.trim();
+  saveState();
+};
 
 loadState();
 </script>
-
-</body>
-</html>
-
