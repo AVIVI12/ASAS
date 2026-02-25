@@ -3,12 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gemini Chat Pro</title>
-
+<title>Gemini Chat Pro – Dynamic Models</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
-
 <style>
 ::-webkit-scrollbar { width:6px }
 ::-webkit-scrollbar-thumb { background:#444; border-radius:10px }
@@ -17,218 +15,138 @@
 .bubble { white-space: pre-wrap; }
 </style>
 </head>
-
 <body class="bg-[#0f0f0f] text-white h-screen flex flex-col">
 
 <header class="p-4 border-b border-gray-800 flex flex-col gap-2 bg-[#111]">
-
 <h1 class="font-bold text-lg">Gemini Chat Pro ✨</h1>
-
 <div class="flex gap-2 items-center flex-wrap">
 
-<input id="proxyServer" type="text"
-placeholder="Proxy URL (חובה לשים את ה-Apps Script)"
-class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-72">
-
-<select id="model"
-class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-56">
-
-<option value="gemini-2.0-flash" selected>
-Gemini 2.0 Flash (Free)
-</option>
-
-<option value="gemini-1.5-flash-latest">
-Gemini 1.5 Flash Latest
-</option>
-
-<option value="gemini-1.5-flash">
-Gemini 1.5 Flash Stable
-</option>
-
+<input id="apiKey" type="password" placeholder="הכנס API Key" class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-40">
+<input id="proxyServer" type="text" placeholder="Proxy URL" class="bg-gray-900 border border-gray-800 rounded px-2 py-2 text-xs w-64">
+<select id="model" class="bg-gray-900 border border-gray-800 rounded px-3 py-2 text-xs w-64">
+  <option>טוען מודלים...</option>
 </select>
-
-<button id="newChat"
-class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 transition">
-שיחה חדשה
-</button>
-
+<button id="newChat" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:opacity-90 transition">שיחה חדשה</button>
 </div>
-
 <div id="chatHistory" class="flex gap-2 overflow-x-auto mt-2"></div>
-
 </header>
 
-<main id="chat"
-class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
-</main>
+<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col"></main>
 
 <footer class="p-4 border-t border-gray-800 flex gap-2 bg-[#111]">
-
-<textarea id="input" rows="1"
-placeholder="כתוב הודעה... (Shift+Enter לשורה חדשה)"
+<textarea id="input" rows="1" placeholder="כתוב הודעה... (Shift+Enter לשורה חדשה)"
 class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none resize-none overflow-y-auto max-h-32"></textarea>
-
-<button onclick="sendMessage()"
-class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition self-end">
-שלח
-</button>
-
+<button onclick="sendMessage()" class="bg-white text-black px-5 py-3 rounded-xl font-semibold hover:opacity-90 transition self-end">שלח</button>
 </footer>
 
 <script>
 /* ========= STATE ========= */
-let state = {
-  chats: JSON.parse(localStorage.getItem("gemini_chats") || "{}"),
-  currentChatId: null,
-  proxy: localStorage.getItem("gemini_proxy") || ""
-};
+let state = { chats: JSON.parse(localStorage.getItem("gemini_chats")||"{}"), currentChatId:null };
+const chatEl=document.getElementById("chat");
+const inputEl=document.getElementById("input");
+const historyEl=document.getElementById("chatHistory");
+const proxyInput=document.getElementById("proxyServer");
+const apiInput=document.getElementById("apiKey");
+const modelSelect=document.getElementById("model");
 
-const chatEl = document.getElementById("chat");
-const inputEl = document.getElementById("input");
-const historyEl = document.getElementById("chatHistory");
-const proxyInput = document.getElementById("proxyServer");
-
-/* ========= UTILS ========= */
-function saveState() {
-  localStorage.setItem("gemini_chats", JSON.stringify(state.chats));
-  localStorage.setItem("gemini_proxy", state.proxy);
+/* ========= HELPERS ========= */
+function saveState(){
+  localStorage.setItem("gemini_chats",JSON.stringify(state.chats));
 }
-
-function createNewChat() {
-  const id = Date.now().toString();
-  state.chats[id] = [];
-  state.currentChatId = id;
-  saveState();
-  renderChat();
-  renderHistory();
-}
-
-function renderMarkdown(el,text){
-  el.innerHTML = DOMPurify.sanitize(marked.parse(text));
-}
-
 function addMessage(role,text){
-  const wrapper = document.createElement("div");
-  wrapper.className = role==="user"?"flex justify-end":"flex justify-start";
-  const bubble = document.createElement("div");
-  bubble.className = role==="user"
-    ?"bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble"
-    :"bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble";
-  renderMarkdown(bubble,text);
+  const wrapper=document.createElement("div");
+  wrapper.className=role==="user"?"flex justify-end":"flex justify-start";
+  const bubble=document.createElement("div");
+  bubble.className=role==="user"?"bg-blue-600 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble":"bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl max-w-[85%] shadow-lg bubble";
+  bubble.innerHTML=DOMPurify.sanitize(marked.parse(text));
   wrapper.appendChild(bubble);
   chatEl.appendChild(wrapper);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  chatEl.scrollTop=chatEl.scrollHeight;
 }
-
 function renderChat(){
   chatEl.innerHTML="";
   (state.chats[state.currentChatId]||[]).forEach(m=>addMessage(m.role,m.content));
 }
-
 function renderHistory(){
   historyEl.innerHTML="";
   Object.keys(state.chats).sort((a,b)=>b-a).forEach(id=>{
-    const btn = document.createElement("button");
+    const btn=document.createElement("button");
     btn.className="bg-gray-800 px-3 py-1 rounded text-xs hover:bg-gray-700";
     btn.textContent=(state.chats[id][0]?.content||"שיחה חדשה").substring(0,20);
-    btn.onclick=()=>{
-      state.currentChatId=id;
-      renderChat();
-      renderHistory();
-    };
+    btn.onclick=()=>{state.currentChatId=id; renderChat(); renderHistory();}
     if(id===state.currentChatId) btn.classList.add("ring-2","ring-blue-500");
     historyEl.appendChild(btn);
   });
 }
 
-/* ========= API ========= */
-function buildPayload(){
-  return {payload:{
-    contents:(state.chats[state.currentChatId]||[]).map(m=>({
-      role:m.role==="user"?"user":"model",
-      parts:[{text:m.content}]
-    }))
-  }};
+/* ========= LOAD MODELS DYNAMICALLY ========= */
+async function loadModels(){
+  const key=apiInput.value.trim();
+  const proxy=proxyInput.value.trim();
+  if(!key || !proxy) return;
+  try{
+    const url=`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
+    const res=await fetch(proxy,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url,payload:{}})});
+    const data=await res.json();
+    modelSelect.innerHTML="";
+    data.models?.forEach(m=>{
+      if(m.name.includes("flash")){ // רק מודלים חינמיים
+        const opt=document.createElement("option");
+        opt.value=m.name;
+        opt.textContent=m.name;
+        modelSelect.appendChild(opt);
+      }
+    });
+  }catch(err){
+    console.error("שגיאה בטעינת מודלים",err);
+    modelSelect.innerHTML='<option>לא ניתן לטעון מודלים</option>';
+  }
 }
 
+/* ========= SEND MESSAGE ========= */
 async function sendMessage(){
-  const proxy = proxyInput.value.trim();
-  if(!proxy) return alert("שורת Proxy חובה");
-
-  const model = document.getElementById("model").value;
-  const text = inputEl.value.trim();
-  if(!text) return;
-
+  const text=inputEl.value.trim();
+  const key=apiInput.value.trim();
+  const proxy=proxyInput.value.trim();
+  const model=modelSelect.value;
+  if(!text||!key||!proxy||!model) return alert("יש למלא API Key, Proxy, טקסט ובחירת מודל");
   state.chats[state.currentChatId].push({role:"user",content:text});
   renderChat();
-  inputEl.value="";
-  inputEl.style.height="auto";
+  inputEl.value=""; inputEl.style.height="auto";
   addMessage("model","⏳ חושב...");
-
-  const payload = buildPayload();
-  payload.model=model;
-
-  const FALLBACK_MODELS = ["gemini-2.0-flash","gemini-1.5-flash-latest","gemini-1.5-flash"];
-
-  const modelsToTry = [model,...FALLBACK_MODELS.filter(m=>m!==model)];
-
-  for(let m of modelsToTry){
-    try{
-      payload.model=m;
-      const res = await fetch(proxy,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(payload)
-      });
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const data = await res.json();
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if(!reply) throw new Error("תגובה ריקה");
-
-      state.chats[state.currentChatId].pop();
-      state.chats[state.currentChatId].push({role:"model",content:reply});
-      renderChat();
-      saveState();
-      renderHistory();
-      return;
-    }catch(err){
-      console.warn("Model failed:",m,err);
-    }
+  const payload={payload:{contents:state.chats[state.currentChatId].map(m=>({role:m.role==="user"?"user":"model",parts:[{text:m.content}]}))},model};
+  try{
+    const res=await fetch(proxy,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,payload})});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const data=await res.json();
+    const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||"❌ לא התקבלה תגובה";
+    state.chats[state.currentChatId].pop();
+    state.chats[state.currentChatId].push({role:"model",content:reply});
+    renderChat();
+    saveState();
+    renderHistory();
+  }catch(err){
+    console.error(err);
+    state.chats[state.currentChatId].pop();
+    addMessage("model","❌ כל המודלים נכשלו");
   }
-  state.chats[state.currentChatId].pop();
-  addMessage("model","❌ כל המודלים נכשלו.");
 }
 
 /* ========= EVENTS ========= */
-document.getElementById("newChat").onclick=createNewChat;
+document.getElementById("newChat").onclick=()=>{const id=Date.now().toString(); state.chats[id]=[]; state.currentChatId=id; saveState(); renderChat(); renderHistory();}
+inputEl.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); sendMessage();}});
+inputEl.oninput=function(){this.style.height="auto"; this.style.height=this.scrollHeight+"px";}
+proxyInput.onchange=loadModels;
+apiInput.onchange=loadModels;
 
-inputEl.addEventListener("keydown",e=>{
-  if(e.key==="Enter" && !e.shiftKey){
-    e.preventDefault();
-    sendMessage();
-  }
-});
-
-inputEl.oninput=function(){
-  this.style.height="auto";
-  this.style.height=this.scrollHeight+"px";
-};
-
-proxyInput.onchange=()=>{
-  state.proxy=proxyInput.value.trim();
-  saveState();
-};
-
-loadState();
-
-function loadState(){
+/* ========= INIT ========= */
+(function init(){
   const ids=Object.keys(state.chats);
   state.currentChatId=ids.length?ids[ids.length-1]:null;
-  if(!state.currentChatId) createNewChat();
+  if(!state.currentChatId){const id=Date.now().toString(); state.chats[id]=[]; state.currentChatId=id;}
   renderChat();
   renderHistory();
-}
+})();
 </script>
-
 </body>
 </html>
